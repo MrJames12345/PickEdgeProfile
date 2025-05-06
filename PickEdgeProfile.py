@@ -23,7 +23,7 @@ EDGE_PROFILES = [
     },
     {
         "name": "CW",
-        "command": "\"C:\\Program Files (x86)\\Microsoft\\Edge Dev\\Application\\msedge.exe\" --profile-directory=\"Profile 3\""
+        "command": "\"C:\\Program Files (x86)\\Microsoft\\Edge Dev\\Application\\msedge.exe\" --profile-directory=\"Profile 14\""
     },
     {
         "name": "CK",
@@ -35,7 +35,7 @@ EDGE_PROFILES = [
     },
     {
         "name": "YTMusicAutomator",
-        "command": "\"C:\\Program Files (x86)\\Microsoft\\Edge Dev\\Application\\msedge.exe\" --profile-directory=\"Profile 8\""
+        "command": "\"C:\\Program Files (x86)\\Microsoft\\Edge Dev\\Application\\msedge.exe\" --profile-directory=\"Profile 15\""
     },
     {
         "name": "HabitsTogether",
@@ -234,6 +234,9 @@ y = second_monitor_center_y - (window_height // 2)
 
 # Set the window position
 root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+
+# Bind Escape key to close the window
+root.bind("<Escape>", lambda event: root.destroy())
 
 # Start the main loop
 root.mainloop()
