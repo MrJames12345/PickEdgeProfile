@@ -44,6 +44,10 @@ EDGE_PROFILES = [
         "command": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --profile-directory=\"Profile 8\""
     },
     {
+        "name": "AIMSProjectManagement",
+        "command": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --profile-directory=\"Profile 8\""
+    },
+    {
         "name": "Veluro",
         "command": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --profile-directory=\"Profile 13\""
     },
@@ -221,7 +225,14 @@ for i, profile in enumerate(EDGE_PROFILES):
         # Look for <name>.png in the images subdirectory
         image_path = os.path.join(base_path, "images", f"{profile_name}.png")
 
-        # If the specific image doesn't exist, fall back to CK.png
+        # If the specific image doesn't exist, try AIMSInspection.png for AIMSProjectManagement
+        if not os.path.exists(image_path):
+            if profile_name == "AIMSProjectManagement":
+                image_path = os.path.join(base_path, "images", "AIMSInspection.png")
+            else:
+                image_path = os.path.join(base_path, "images", "CK.png")
+
+        # If the image still doesn't exist, fall back to CK.png
         if not os.path.exists(image_path):
             image_path = os.path.join(base_path, "images", "CK.png")
 
