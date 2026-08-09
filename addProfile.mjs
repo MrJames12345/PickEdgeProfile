@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // Inline logging to <scriptname>_output.txt
-import { writeFileSync as __logWFS, appendFileSync as __logAFS, mkdirSync as __logMKDIR } from "node:fs";
-import { resolve as __logResolve, dirname as __logDirname, basename as __logBasename } from "node:path";
+import { appendFileSync as __logAFS, mkdirSync as __logMKDIR, writeFileSync as __logWFS } from "node:fs";
+import { basename as __logBasename, dirname as __logDirname, resolve as __logResolve } from "node:path";
 import { fileURLToPath as __logFTUP } from "node:url";
 const __logDir = __logDirname(__logFTUP(import.meta.url));
 const __logName = __logBasename(__logFTUP(import.meta.url), ".mjs");
@@ -22,10 +22,10 @@ console.warn=(...a)=>{__wl("[WRN] "+a.map(String).join(" "));__origWarn(...a)};
  * Requires Python to be installed for the setup script.
  */
 
-import { createInterface } from "node:readline";
-import { existsSync, mkdirSync } from "node:fs";
-import { resolve } from "node:path";
 import { execSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { createInterface } from "node:readline";
 
 function cmdExists(cmd) {
   try {
@@ -34,98 +34,104 @@ function cmdExists(cmd) {
   } catch { return false; }
 }
 
-if (!cmdExists("python")) {
-  console.error("Error: Python is not installed or not in PATH.");
-  process.exit(1);
+function createRl() {
+  return createInterface({ input: process.stdin, output: process.stdout });
 }
 
-const rl = createInterface({ input: process.stdin, output: process.stdout });
-function ask(question) {
+function ask(rl, question) {
   return new Promise((resolve) => rl.question(question, resolve));
 }
 
-// 1. File Selection via PowerShell
-console.log("Please select the PNG image for the new profile...");
-let SOURCE_FILE = "";
-try {
-  SOURCE_FILE = execSync(
-    'powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = \'PNG Files (*.png)|*.png\'; $f.InitialDirectory = [System.Environment]::GetFolderPath(\'Desktop\'); $res = $f.ShowDialog(); if($res -eq \'OK\'){ $f.FileName }"',
-    { encoding: "utf8" }
-  ).trim();
-} catch {}
-
-if (!SOURCE_FILE) {
-  console.log("[ERROR] No file selected.");
-  process.exit(1);
-}
-
-if (!existsSync(SOURCE_FILE)) {
-  console.log(`[ERROR] Selected file does not exist: ${SOURCE_FILE}`);
-  process.exit(1);
-}
-
-// Configuration
-const PY_FILE = "C:\\repo\\JC_PickEdgeProfile\\Dashboard.py";
-const IMAGES_DIR = "C:\\repo\\JC_PickEdgeProfile\\images";
-
-// 2. Prompt for Profile Name
-let PROFILE_NAME = "";
-while (!PROFILE_NAME) {
-  PROFILE_NAME = (await ask("Enter App Name (e.g. AIMSProjectManagement): ")).trim();
-  if (!PROFILE_NAME) continue;
-
-  // Check if name exists in Dashboard.py
+/** Keep the terminal open so the user can read error output. */
+async function waitForUserInput(message = "Press Enter to exit...") {
+  const rl = createRl();
   try {
-    const checkResult = execSync(
-      `python -c "import sys; p=r'${PY_FILE}'; c=open(p, encoding='utf-8').read(); print('EXISTS' if f'\\\"name\\\": \\\"{PROFILE_NAME}\\\"' in c else 'OK')"`,
-      { encoding: "utf8" }
-    ).trim();
-    if (checkResult === "EXISTS") {
-      console.log(
-        `[ERROR] Profile Name '${PROFILE_NAME}' already exists in Dashboard.py.`
-      );
-      PROFILE_NAME = "";
-    }
-  } catch {
-    console.log("[ERROR] Failed to check Dashboard.py");
-    process.exit(1);
+    await ask(rl, message);
+  } finally {
+    rl.close();
   }
 }
-rl.close();
 
-// 3. Verify PY_FILE exists
-if (!existsSync(PY_FILE)) {
-  console.log(`[ERROR] Could not find ${PY_FILE}`);
-  process.exit(1);
-}
+async function main() {
+  if (!cmdExists("python")) {
+    throw new Error("Python is not installed or not in PATH.");
+  }
 
-// 4. Rename and move the image
-console.log(`Renaming ${SOURCE_FILE} to ${PROFILE_NAME}.png...`);
-const TARGET_FILE = resolve(IMAGES_DIR, `${PROFILE_NAME}.png`);
+  const rl = createRl();
 
-if (!existsSync(IMAGES_DIR)) {
-  mkdirSync(IMAGES_DIR, { recursive: true });
-}
+  try {
+    // 1. File Selection via PowerShell
+    console.log("Please select the PNG image for the new profile...");
+    let SOURCE_FILE = "";
+    try {
+      SOURCE_FILE = execSync(
+        'powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = \'PNG Files (*.png)|*.png\'; $f.InitialDirectory = [System.Environment]::GetFolderPath(\'Desktop\'); $res = $f.ShowDialog(); if($res -eq \'OK\'){ $f.FileName }"',
+        { encoding: "utf8" }
+      ).trim();
+    } catch {}
 
-try {
-  execSync(`move "${SOURCE_FILE}" "${TARGET_FILE}"`);
-} catch {
-  console.log("[ERROR] Failed to move/rename file.");
-  process.exit(1);
-}
+    if (!SOURCE_FILE) {
+      throw new Error("No file selected.");
+    }
 
-// 5. Run the Python setup script (ported inline from the bat)
-// The bat generates a temp Python script, let me do the same
-console.log("Creating Edge profile, injecting bookmarks, and updating Dashboard.py...");
+    if (!existsSync(SOURCE_FILE)) {
+      throw new Error(`Selected file does not exist: ${SOURCE_FILE}`);
+    }
 
-const { writeFileSync, unlinkSync } = await import("node:fs");
-const { tmpdir } = await import("node:os");
-const { join } = await import("node:path");
+    // Configuration
+    const PY_FILE = "C:\\repo\\JC_PickEdgeProfile\\Dashboard.py";
+    const IMAGES_DIR = "C:\\repo\\JC_PickEdgeProfile\\images";
 
-const SETUP_SCRIPT = join(tmpdir(), "setup_edge_profile.py");
-const STATUS_FILE = join(tmpdir(), "setup_status.txt");
+    // 2. Prompt for Profile Name
+    let PROFILE_NAME = "";
+    while (!PROFILE_NAME) {
+      PROFILE_NAME = (await ask(rl, "Enter App Name (e.g. AIMSProjectManagement): ")).trim();
+      if (!PROFILE_NAME) continue;
 
-const pythonSetup = `
+      // Check if name exists in Dashboard.py
+      try {
+        const content = readFileSync(PY_FILE, "utf8");
+        if (content.includes(`"name": "${PROFILE_NAME}"`)) {
+          console.log(
+            `[ERROR] Profile Name '${PROFILE_NAME}' already exists in Dashboard.py.`
+          );
+          PROFILE_NAME = "";
+        }
+      } catch {
+        throw new Error("Failed to check Dashboard.py");
+      }
+    }
+
+    // 3. Verify PY_FILE exists
+    if (!existsSync(PY_FILE)) {
+      throw new Error(`Could not find ${PY_FILE}`);
+    }
+
+    // 4. Rename and move the image
+    console.log(`Renaming ${SOURCE_FILE} to ${PROFILE_NAME}.png...`);
+    const TARGET_FILE = resolve(IMAGES_DIR, `${PROFILE_NAME}.png`);
+
+    if (!existsSync(IMAGES_DIR)) {
+      mkdirSync(IMAGES_DIR, { recursive: true });
+    }
+
+    try {
+      execSync(`move "${SOURCE_FILE}" "${TARGET_FILE}"`);
+    } catch {
+      throw new Error("Failed to move/rename file.");
+    }
+
+    // 5. Run the Python setup script (ported inline from the bat)
+    // The bat generates a temp Python script, let me do the same
+    console.log("Creating Edge profile, injecting bookmarks, and updating Dashboard.py...");
+
+    const { writeFileSync, unlinkSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+
+    const SETUP_SCRIPT = join(tmpdir(), "setup_edge_profile.py");
+
+    const pythonSetup = `
 import sys, re, os, json
 name = sys.argv[1]
 py_file = sys.argv[2]
@@ -169,39 +175,56 @@ else:
     print("FAILED")
 `;
 
-writeFileSync(SETUP_SCRIPT, pythonSetup);
+    writeFileSync(SETUP_SCRIPT, pythonSetup);
 
-let PROFILE_DIR = "";
-try {
-  PROFILE_DIR = execSync(
-    `python "${SETUP_SCRIPT}" "${PROFILE_NAME}" "${PY_FILE}"`,
-    { encoding: "utf8" }
-  ).trim();
-} catch {}
-try { unlinkSync(SETUP_SCRIPT); } catch {}
+    let PROFILE_DIR = "";
+    try {
+      PROFILE_DIR = execSync(
+        `python "${SETUP_SCRIPT}" "${PROFILE_NAME}" "${PY_FILE}"`,
+        { encoding: "utf8" }
+      ).trim();
+    } catch {}
+    try { unlinkSync(SETUP_SCRIPT); } catch {}
 
-if (PROFILE_DIR === "FAILED" || !PROFILE_DIR) {
-  console.log("[ERROR] Failed to create Edge profile or update Dashboard.py.");
-  process.exit(1);
+    if (PROFILE_DIR === "FAILED" || !PROFILE_DIR) {
+      throw new Error("Failed to create Edge profile or update Dashboard.py.");
+    }
+
+    console.log();
+    console.log("==========================================================");
+    console.log(`SUCCESS!`);
+    console.log(`Profile '${PROFILE_NAME}' (${PROFILE_DIR}) was added.`);
+    console.log(`Image saved to: ${TARGET_FILE}`);
+    console.log("Dashboard.py updated.");
+    console.log("==========================================================");
+    console.log();
+
+    // 6. Launch Edge with the new profile
+    console.log(`Launching new profile '${PROFILE_NAME}'...`);
+    try {
+      execSync(
+        `start "" "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" --profile-directory="${PROFILE_DIR}" --no-first-run`,
+        { stdio: "ignore" }
+      );
+    } catch {}
+
+    console.log();
+    console.log("Done!");
+  } finally {
+    rl.close();
+  }
 }
 
-console.log();
-console.log("==========================================================");
-console.log(`SUCCESS!`);
-console.log(`Profile '${PROFILE_NAME}' (${PROFILE_DIR}) was added.`);
-console.log(`Image saved to: ${TARGET_FILE}`);
-console.log("Dashboard.py updated.");
-console.log("==========================================================");
-console.log();
-
-// 6. Launch Edge with the new profile
-console.log(`Launching new profile '${PROFILE_NAME}'...`);
-try {
-  execSync(
-    `start "" "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" --profile-directory="${PROFILE_DIR}" --no-first-run`,
-    { stdio: "ignore" }
-  );
-} catch {}
-
-console.log();
-console.log("Done!");
+main().catch(async (err) => {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`[ERROR] ${message}`);
+  if (err instanceof Error && err.stack) {
+    console.error(err.stack);
+  }
+  try {
+    await waitForUserInput();
+  } catch {
+    // stdin may be unavailable; still exit with error
+  }
+  process.exit(1);
+});
