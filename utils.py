@@ -45,10 +45,11 @@ def get_cursor_path():
     return 'cursor'
 
 def launch_cursor(target_path):
-    """Launch Cursor with the specified path"""
+    """Launch Cursor with the specified path in IDE (classic editor) view"""
     try:
         cursor_exe = get_cursor_path()
-        subprocess.Popen(f'"{cursor_exe}" "{target_path}"', shell=True)
+        # --classic opens the editor window instead of the Agents window
+        subprocess.Popen(f'"{cursor_exe}" --classic "{target_path}"', shell=True)
         return True
     except Exception as e:
         print(f"Error launching Cursor: {e}")
