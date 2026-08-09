@@ -71,7 +71,7 @@ const IMAGES_DIR = "C:\\repo\\JC_PickEdgeProfile\\images";
 // 2. Prompt for Profile Name
 let PROFILE_NAME = "";
 while (!PROFILE_NAME) {
-  PROFILE_NAME = (await ask("Enter Profile Name (e.g. Sticker Boys): ")).trim();
+  PROFILE_NAME = (await ask("Enter App Name (e.g. AIMSProjectManagement): ")).trim();
   if (!PROFILE_NAME) continue;
 
   // Check if name exists in Dashboard.py
