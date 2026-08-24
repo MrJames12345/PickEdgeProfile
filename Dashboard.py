@@ -71,6 +71,10 @@ EDGE_PROFILES = [
     #     "name": "IceDestroysMovies",
     #     "command": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --profile-directory=\"Profile 10\""
     # },
+    {
+        "name": "RollingAlarm",
+        "command": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --profile-directory=\"Profile 1000\""
+    }
 ]
 
 def launch_edge_profile(command):
